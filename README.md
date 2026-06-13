@@ -1,36 +1,77 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Shared Expenses Application
 
-## Getting Started
+A full-stack Next.js 15 application designed to manage shared flat expenses, track individual timelines, convert USD trip expenses, detect duplicate entries, and calculate optimized payments.
 
-First, run the development server:
+This project was built to solve shared expense tracking for flat mates **Aisha**, **Rohan**, **Priya**, **Meera**, and **Sam**.
 
+---
+
+## 🚀 Quick Start & Setup
+
+### Prerequisites
+- **Node.js** (v18 or higher recommended)
+- **npm** (comes with Node.js)
+
+### 1. Install Dependencies
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Configure Environment
+Create a `.env` file in the root directory (or use the seeded default `.env`):
+```env
+DATABASE_URL="file:./dev.db"
+JWT_SECRET="super-secret-key-change-this-in-production"
+PORT=3000
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 3. Run Database Migrations & Seeding
+Deploy migrations to initialize the SQLite database and seed the flat mates:
+```bash
+npx prisma migrate dev --name init
+```
+This automatically registers the 6 flat mates (Aisha, Rohan, Priya, Meera, Dev, Sam) with their correct timeline join/leave dates, and sets their default login passwords to `password123`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 4. Start Development Server
+```bash
+npm run dev
+```
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## 🛠️ Tech Stack & Architecture
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **Framework:** Next.js 15 (App Router)
+- **Database:** SQLite (Relational local database)
+- **ORM:** Prisma
+- **Auth:** Custom JWT HTTP-Only Cookies
+- **Styling:** Tailwind CSS + custom glassmorphism components
+- **Parsing:** Papa Parse (CSV reader)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## 💎 Features & Flat Mate Solutions
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. **Aisha ("One number per person")**
+   - Implements the **Minimum Cash Flow (Greedy) Algorithm** under the "Settlements" tab to reduce complex group debts to the absolute minimum required transfers.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+2. **Rohan ("No magic numbers")**
+   - Under the "Balances" tab, clicking any member opens their **detailed ledger ledger history** showing exact credit/debit math behind every rupee they owe.
+
+3. **Priya ("Trip in USD conversion")**
+   - Ingests USD trip expenses, parses dollar prefixes (`$`), and converts them to INR using historical exchange rates (default `83.50`) on the date of the expense.
+
+4. **Sam & Meera ("Membership timeline tracking")**
+   - Restricts expense splits to active members on the `ExpenseDate` using `joinedAt` and `leftAt` dates. Sam (joined Apr 15) is excluded from March bills; Meera (left Mar 31) is excluded from April/May bills.
+
+5. **Meera ("Approve changes / deduplication")**
+   - The CSV import wizard lists duplicates, format mismatches, and negative amounts with individual **Approve / Skip** review controls before committing to the DB.
+
+---
+
+## 🤖 AI Collaborative Partner
+
+This application was designed and coded in collaboration with **Antigravity**, an agentic AI coding assistant from Google DeepMind.
+See [AI_USAGE.md](file:///Users/msr/Documents/test/AI_USAGE.md) for prompts and failure resolution details.
