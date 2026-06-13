@@ -1,0 +1,156 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String            @id @default(uuid())
+  email        String            @unique
+  name         String
+  passwordHash String
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  memberships  GroupMembership[]
+  paidExpenses Expense[]         @relation("Payer")
+  splits       ExpenseSplit[]
+  sentPayments Settlement[]       @relation("Sender")
+  rcvdPayments Settlement[]       @relation("Receiver")
+  anomalies    ImportAnomaly[]
+}
+
+model Group {
+  id              String            @id @default(uuid())
+  name            String
+  description     String?
+  defaultCurrency String            @default("INR")
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  memberships     GroupMembership[]
+  expenses        Expense[]
+  settlements     Settlement[]
+  importBatches   ImportBatch[]
+}
+
+model GroupMembership {
+  id        String    @id @default(uuid())
+  groupId   String
+  userId    String
+  joinedAt  DateTime  @default(now())
+  leftAt    DateTime?
+  role      String    @default("member") // admin, member
+  createdAt DateTime  @default(now())
+
+  group     Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+}
+
+model Expense {
+  id             String         @id @default(uuid())
+  groupId        String
+  paidById       String
+  description    String
+  amount         Float          // Original amount
+  currency       String         @default("INR") // INR, USD
+  exchangeRate   Float          @default(1.0)
+  amountInr      Float          // Converted amount in INR
+  expenseDate    DateTime
+  splitType      String         @default("equal") // equal, exact, percentage, shares
+  category       String         @default("General")
+  status         String         @default("active") // active, deleted
+  importBatchId  String?
+  csvRowNumber   Int?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  group          Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  paidBy         User           @relation("Payer", fields: [paidById], references: [id], onDelete: Cascade)
+  splits         ExpenseSplit[]
+  importBatch    ImportBatch?   @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+
+  @@index([groupId])
+  @@index([expenseDate])
+}
+
+model ExpenseSplit {
+  id        String   @id @default(uuid())
+  expenseId String
+  userId    String
+  amount    Float    // Share in original currency
+  amountInr Float    // Share in INR
+  shares    Float?   // Share count or percentage weight
+
+  expense   Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([expenseId, userId])
+}
+
+model Settlement {
+  id             String       @id @default(uuid())
+  groupId        String
+  fromUserId     String
+  toUserId       String
+  amount         Float
+  currency       String       @default("INR")
+  settlementDate DateTime     @default(now())
+  notes          String?
+  importBatchId  String?
+  createdAt      DateTime     @default(now())
+
+  group          Group        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  fromUser       User         @relation("Sender", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser         User         @relation("Receiver", fields: [toUserId], references: [id], onDelete: Cascade)
+  importBatch    ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+
+  @@index([groupId])
+}
+
+model ImportBatch {
+  id           String          @id @default(uuid())
+  groupId      String
+  importedById String
+  filename     String
+  status       String          @default("pending") // pending, completed, failed
+  totalRows    Int             @default(0)
+  importedRows Int             @default(0)
+  skippedRows  Int             @default(0)
+  anomalyCount Int             @default(0)
+  summary      String?         // JSON string for report summary
+  createdAt    DateTime        @default(now())
+  completedAt  DateTime?
+
+  group        Group           @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  expenses     Expense[]
+  settlements  Settlement[]
+  anomalies    ImportAnomaly[]
+
+  @@index([groupId])
+}
+
+model ImportAnomaly {
+  id                 String       @id @default(uuid())
+  importBatchId      String
+  csvRowNumber       Int
+  anomalyType        String       // duplicate, negative_amount, currency_mismatch, inactive_member, unknown_member, settlement_as_expense, etc.
+  severity           String       // error, warning, info
+  description        String
+  originalData       String       // JSON string of raw CSV row
+  actionTaken        String       // resolved, merged, skipped, flagged
+  resolutionDetails  String?
+  reviewStatus       String       @default("pending") // pending, approved, rejected
+  reviewedById       String?
+  reviewedAt         DateTime?
+  resultingExpenseId String?      // If an expense was created after approval
+  createdAt          DateTime     @default(now())
+
+  importBatch        ImportBatch  @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
+  reviewedBy         User?        @relation(fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([importBatchId])
+}
