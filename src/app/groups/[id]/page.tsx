@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import ThemeToggle from '@/components/ThemeToggle';
-import { ChevronRight, Upload, UserPlus, Info, Check, X, ShieldAlert, ArrowLeftRight, UserCheck } from 'lucide-react';
+import { Upload, Check, X, ShieldAlert, UserPlus } from 'lucide-react';
 
 interface User {
   id: string;
@@ -165,6 +165,14 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
   const [editLeftAt, setEditLeftAt] = useState('');
   const [editRole, setEditRole] = useState('member');
 
+  // Add Member Form States
+  const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [selectedNewUserId, setSelectedNewUserId] = useState<string>('');
+  const [newMemberJoinedAt, setNewMemberJoinedAt] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [newMemberRole, setNewMemberRole] = useState<string>('member');
+  const [addMemberError, setAddMemberError] = useState<string>('');
+  const [addMemberSuccess, setAddMemberSuccess] = useState<string>('');
+
   // Load Group Data
   const loadData = async () => {
     try {
@@ -215,6 +223,13 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
         const balData = await balRes.json();
         setBalances(balData.balances);
         setSuggestedSettlements(balData.suggestedSettlements);
+      }
+
+      // Fetch all users
+      const usersRes = await fetch('/api/users');
+      if (usersRes.ok) {
+        const usersData = await usersRes.json();
+        setAllUsers(usersData.users);
       }
     } catch (err) {
       console.error('Error loading group data:', err);
@@ -465,6 +480,44 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
       }
     } catch (err) {
       console.error('Error updating membership:', err);
+    }
+  };
+
+  const handleAddMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAddMemberError('');
+    setAddMemberSuccess('');
+
+    if (!selectedNewUserId) {
+      setAddMemberError('Please select a user to add');
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/groups/${groupId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          members: [
+            {
+              userId: selectedNewUserId,
+              joinedAt: newMemberJoinedAt,
+              role: newMemberRole,
+            }
+          ]
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to add member');
+      }
+
+      setAddMemberSuccess('Member added successfully!');
+      setSelectedNewUserId('');
+      loadData();
+    } catch (err: any) {
+      setAddMemberError(err.message || 'Error adding member');
     }
   };
 
@@ -849,7 +902,6 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
                   </div>
                 </div>
               )}
-
               {/* MEMBERS TIMELINE TAB */}
               {activeTab === 'members' && (
                 <div className="flex flex-col gap-5">
@@ -857,6 +909,77 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
                   <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xl leading-relaxed">
                     <strong className="text-slate-800 dark:text-slate-250">Sam&apos;s request resolved:</strong> Users only participate in splitting expenses dated between their joined and left dates. Inspect and adjust flat mate timelines below:
                   </p>
+
+                  {/* Add Member Form */}
+                  <div className="bg-white dark:bg-slate-900/30 border border-slate-200 dark:border-slate-900/60 p-5 rounded-2xl flex flex-col gap-4 shadow-sm transition-colors duration-300">
+                    <h3 className="font-bold text-sm text-slate-850 dark:text-slate-200 flex items-center gap-1.5">
+                      <UserPlus className="w-4 h-4 text-emerald-500" />
+                      Add New Member to Group
+                    </h3>
+                    
+                    {addMemberError && (
+                      <div className="bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-xs p-3 rounded-xl">
+                        {addMemberError}
+                      </div>
+                    )}
+                    {addMemberSuccess && (
+                      <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-450 text-xs p-3 rounded-xl">
+                        {addMemberSuccess}
+                      </div>
+                    )}
+
+                    <form onSubmit={handleAddMember} className="flex flex-wrap items-end gap-4">
+                      <div className="flex flex-col gap-1.5 min-w-[200px] flex-1">
+                        <span className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500">Select Flat Mate</span>
+                        <select
+                          value={selectedNewUserId}
+                          required
+                          onChange={(e) => setSelectedNewUserId(e.target.value)}
+                          className="bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500 text-slate-900 dark:text-slate-200"
+                        >
+                          <option value="">-- Select Member --</option>
+                          {allUsers
+                            .filter(u => !group?.memberships.some(m => m.userId === u.id))
+                            .map(u => (
+                              <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                            ))
+                          }
+                        </select>
+                      </div>
+
+                      <div className="flex flex-col gap-1.5 w-36">
+                        <span className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500">Joined Date</span>
+                        <input
+                          type="date"
+                          required
+                          value={newMemberJoinedAt}
+                          onChange={(e) => setNewMemberJoinedAt(e.target.value)}
+                          className="bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500 text-slate-900 dark:text-slate-200"
+                        />
+                      </div>
+
+                      <div className="flex flex-col gap-1.5 w-32">
+                        <span className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500">Role</span>
+                        <select
+                          value={newMemberRole}
+                          onChange={(e) => setNewMemberRole(e.target.value)}
+                          className="bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500 text-slate-900 dark:text-slate-200"
+                        >
+                          <option value="member">Member</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                      </div>
+
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        type="submit"
+                        className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 font-bold rounded-xl text-xs h-9 shadow transition-all whitespace-nowrap"
+                      >
+                        Add Member
+                      </motion.button>
+                    </form>
+                  </div>
 
                   <div className="bg-white dark:bg-slate-900/20 border border-slate-200 dark:border-slate-900 rounded-2xl overflow-hidden shadow-sm dark:shadow-md">
                     <div className="divide-y divide-slate-100 dark:divide-slate-900/60">
